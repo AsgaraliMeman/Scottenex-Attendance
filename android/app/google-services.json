@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "79550369447",
+    "project_id": "scottenex-attendance",
+    "storage_bucket": "scottenex-attendance.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79550369447:android:731751c59e90fe99e49582",
+        "android_client_info": {
+          "package_name": "com.scottenex.attendance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwMAoH52mkUsmZjggJBPEu-pA_S7yqvfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

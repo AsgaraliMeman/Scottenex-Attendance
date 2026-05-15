@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "scottenex-attendance",
+          "appId": "1:79550369447:android:731751c59e90fe99e49582",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "scottenex-attendance",
+          "configurations": {
+            "android": "1:79550369447:android:731751c59e90fe99e49582",
+            "ios": "1:79550369447:ios:6b018a3c5cdf75bbe49582",
+            "macos": "1:79550369447:ios:6b018a3c5cdf75bbe49582",
+            "web": "1:79550369447:web:a660cb157c354c56e49582",
+            "windows": "1:79550369447:web:0a2cf8c5ac2954d9e49582"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
