@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:scottenex_attendance/providers/admin_profile_provider.dart';
 import 'package:scottenex_attendance/providers/auth_provider.dart';
 import 'package:scottenex_attendance/utils/app_colors.dart';
+import 'package:scottenex_attendance/services/notification_handler_service.dart';
 
 /// Admin Profile Screen Widget
 ///
@@ -98,6 +99,10 @@ class AdminProfileScreen extends StatelessWidget {
                 // ============ Email Information Card ============
                 _buildEmailCard(adminEmail),
                 SizedBox(height: largeGap),
+
+                // ============ Test Notification Button ============
+                _buildTestNotificationButton(context),
+                SizedBox(height: mediumGap),
 
                 // ============ Sign Out Button ============
                 _buildSignOutButton(context, profileProvider),
@@ -225,6 +230,38 @@ class AdminProfileScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Builds the test notification button
+  /// When pressed, displays a test notification to verify notifications work
+  Widget _buildTestNotificationButton(BuildContext context) {
+    return SizedBox(
+      height: signOutButtonHeight,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          NotificationHandlerService.showTestNotification(
+            title: '✉️ Test Notification',
+            body: 'This is a test notification. Notifications are working!',
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Test notification sent!')),
+          );
+        },
+        icon: const Icon(Icons.notifications),
+        label: const Text(
+          'Test Notification',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(containerBorderRadius),
+          ),
+        ),
       ),
     );
   }

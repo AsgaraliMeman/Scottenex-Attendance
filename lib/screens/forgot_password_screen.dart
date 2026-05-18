@@ -6,14 +6,11 @@ class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() =>
-      _ForgotPasswordScreenState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState
-    extends State<ForgotPasswordScreen> {
-  final TextEditingController _emailController =
-      TextEditingController();
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final TextEditingController _emailController = TextEditingController();
 
   bool _isLoading = false;
 
@@ -34,10 +31,7 @@ class _ForgotPasswordScreenState
           onPressed: () {
             Navigator.pop(context);
           },
-          icon: const Icon(
-            Icons.arrow_back,
-            color: Colors.black,
-          ),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
         ),
         title: const Text(
           'Attendance',
@@ -51,10 +45,7 @@ class _ForgotPasswordScreenState
       body: SingleChildScrollView(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 40,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
             child: Column(
               children: [
                 Container(
@@ -75,10 +66,7 @@ class _ForgotPasswordScreenState
 
                 const Text(
                   'Forgot Password',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 20),
@@ -86,10 +74,7 @@ class _ForgotPasswordScreenState
                 Text(
                   'Send password reset request to admin.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[700],
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                 ),
 
                 const SizedBox(height: 40),
@@ -110,16 +95,13 @@ class _ForgotPasswordScreenState
 
                 TextField(
                   controller: _emailController,
-                  keyboardType:
-                      TextInputType.emailAddress,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    hintText:
-                        'employee@company.com',
+                    hintText: 'employee@company.com',
                     filled: true,
                     fillColor: Colors.grey[200],
                     border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -131,28 +113,20 @@ class _ForgotPasswordScreenState
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed:
-                        _isLoading
-                            ? null
-                            : _handleSendRequest,
+                    onPressed: _isLoading ? null : _handleSendRequest,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          AppColors.accent,
+                      backgroundColor: AppColors.accent,
                     ),
-                    child:
-                        _isLoading
-                            ? const CircularProgressIndicator(
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.black)
+                        : const Text(
+                            'Send Request',
+                            style: TextStyle(
                               color: Colors.black,
-                            )
-                            : const Text(
-                              'Send Request',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 18,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
+                          ),
                   ),
                 ),
               ],
@@ -169,9 +143,7 @@ class _ForgotPasswordScreenState
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Please enter your email address',
-          ),
+          content: Text('Please enter your email address'),
           backgroundColor: Colors.red,
         ),
       );
@@ -185,20 +157,11 @@ class _ForgotPasswordScreenState
     try {
       final firestore = FirebaseFirestore.instance;
 
-      final existingRequest =
-          await firestore
-              .collection(
-                'password_reset_requests',
-              )
-              .where(
-                'email',
-                isEqualTo: email,
-              )
-              .where(
-                'status',
-                isEqualTo: 'pending',
-              )
-              .get();
+      final existingRequest = await firestore
+          .collection('password_reset_requests')
+          .where('email', isEqualTo: email)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
       if (existingRequest.docs.isNotEmpty) {
         setState(() {
@@ -207,9 +170,7 @@ class _ForgotPasswordScreenState
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Request already pending approval',
-            ),
+            content: Text('Request already pending approval'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -217,16 +178,32 @@ class _ForgotPasswordScreenState
         return;
       }
 
-      await firestore
-          .collection(
-            'password_reset_requests',
-          )
-          .add({
-            'email': email,
-            'status': 'pending',
-            'requestedAt': Timestamp.now(),
-            'processedAt': null,
-          });
+      // Look up the employee UID from the users collection
+      debugPrint('🔍 Looking up user UID for email: $email');
+
+      String employeeUid = '';
+      final userQuery = await firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isNotEmpty) {
+        employeeUid = userQuery.docs.first.id;
+        debugPrint('✅ Found employee UID: $employeeUid');
+      } else {
+        debugPrint('⚠️ Employee not found in system');
+      }
+
+      await firestore.collection('password_reset_requests').add({
+        'email': email,
+        'uid': employeeUid,
+        'status': 'pending',
+        'requestedAt': Timestamp.now(),
+        'processedAt': null,
+      });
+
+      debugPrint('✅ Password reset request created');
 
       setState(() {
         _isLoading = false;
@@ -234,31 +211,23 @@ class _ForgotPasswordScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Password reset request sent to admin',
-          ),
+          content: Text('Password reset request sent to admin'),
           backgroundColor: Colors.green,
         ),
       );
 
-      Future.delayed(
-        const Duration(seconds: 2),
-        () {
-          if (mounted) {
-            Navigator.pop(context);
-          }
-        },
-      );
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      });
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }

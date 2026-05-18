@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:scottenex_attendance/providers/auth_provider.dart' as app_auth;
 import 'package:scottenex_attendance/utils/app_colors.dart';
-import 'admin_dashboard_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -355,10 +354,15 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Admin login successful')));
 
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-          (route) => false,
-        );
+        // Wait a moment for the user model to be loaded by the auth listener
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Pop this screen to go back to AuthWrapper
+        // AuthWrapper will automatically navigate to AdminDashboardScreen
+        // when auth state changes and role is verified as 'admin'
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Secure login failed';

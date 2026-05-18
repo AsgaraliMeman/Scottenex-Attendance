@@ -1,4 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permissions required for Firebase notifications and app functionality -->
+    <!-- INTERNET: Required for Firebase Cloud Messaging -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- POST_NOTIFICATIONS: Required for Android 13+ to send notifications -->
+    <!-- This permission is runtime-requested by flutter_local_notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- SCHEDULE_EXACT_ALARM: Optional, for scheduled notifications if needed -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    
     <application
         android:label="scottenex_attendence"
         android:name="${applicationName}"
@@ -30,6 +41,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        
+        <!-- Firebase Notification Channel Configuration -->
+        <!-- Sets the default notification channel for all FCM notifications -->
+        <!-- The channel with ID 'password_reset' is created in NotificationHandlerService -->
+        <!-- with high importance for immediate notification display -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="password_reset" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
