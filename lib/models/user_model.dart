@@ -7,6 +7,7 @@ class UserModel {
   final String? designation;
   final bool isFirstLogin;
   final DateTime? createdAt;
+  final String? fcmToken;
 
   UserModel({
     required this.uid,
@@ -17,6 +18,7 @@ class UserModel {
     this.designation,
     required this.isFirstLogin,
     this.createdAt,
+    this.fcmToken,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> data, String uid) {
@@ -29,6 +31,7 @@ class UserModel {
       designation: data['designation'] as String?,
       isFirstLogin: data['isFirstLogin'] ?? true,
       createdAt: data['createdAt']?.toDate(),
+      fcmToken: data['fcmToken'] as String?,
     );
   }
 
@@ -41,6 +44,7 @@ class UserModel {
       'designation': designation,
       'isFirstLogin': isFirstLogin,
       'createdAt': createdAt ?? DateTime.now(),
+      'fcmToken': fcmToken,
     };
   }
 
@@ -53,6 +57,7 @@ class UserModel {
     String? designation,
     bool? isFirstLogin,
     DateTime? createdAt,
+    String? fcmToken,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -63,6 +68,7 @@ class UserModel {
       designation: designation ?? this.designation,
       isFirstLogin: isFirstLogin ?? this.isFirstLogin,
       createdAt: createdAt ?? this.createdAt,
+      fcmToken: fcmToken ?? this.fcmToken,
     );
   }
 }

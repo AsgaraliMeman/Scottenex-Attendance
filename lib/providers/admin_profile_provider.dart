@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'auth_provider.dart';
-import '../screens/login_screen.dart';
 import '../utils/app_colors.dart';
 
 /// Admin Profile Provider (ViewModel)
@@ -38,25 +37,28 @@ class AdminProfileProvider extends ChangeNotifier {
   /// Handles the sign out process
   ///
   /// Steps:
-  /// 1. Sign out from authentication provider
-  /// 2. Navigate to login screen
-  /// 3. Clear all previous routes from navigation stack
+  /// 1. Pop the profile screen from navigation stack (dialog already closed by caller)
+  /// 2. Sign out from authentication provider
+  /// 3. AuthWrapper will automatically show login screen when auth state changes
   Future<void> handleSignOut(BuildContext context) async {
     try {
-      // Perform sign out
+      // Pop the profile screen from the navigation stack
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Now sign out - this will trigger auth state change
+      // and AuthWrapper will show login screen
       await authProvider.signOut();
 
-      // Navigate to login screen and remove all previous routes
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      }
+      debugPrint('User signed out successfully');
     } catch (e) {
-      // Handle error if needed
       debugPrint('Sign out error: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Sign out error: $e')));
+      }
       rethrow;
     }
   }
@@ -64,12 +66,12 @@ class AdminProfileProvider extends ChangeNotifier {
   /// Shows confirmation dialog before signing out
   ///
   /// Parameters:
-  /// - context: BuildContext for showing the dialog
-  void showLogoutConfirmation(BuildContext context) {
+  /// - context: BuildContext for showing the dialog (from profile screen)
+  void showLogoutConfirmation(BuildContext profileScreenContext) {
     showDialog(
-      context: context,
+      context: profileScreenContext,
       builder: (dialogContext) {
-        return _buildLogoutDialog(dialogContext);
+        return _buildLogoutDialog(profileScreenContext);
       },
     );
   }
@@ -77,7 +79,7 @@ class AdminProfileProvider extends ChangeNotifier {
   /// Builds the logout confirmation dialog
   ///
   /// Returns an AlertDialog with confirmation options
-  AlertDialog _buildLogoutDialog(BuildContext context) {
+  AlertDialog _buildLogoutDialog(BuildContext profileScreenContext) {
     return AlertDialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -93,7 +95,7 @@ class AdminProfileProvider extends ChangeNotifier {
         // Cancel button
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pop(profileScreenContext);
           },
           child: const Text(
             'No',
@@ -106,8 +108,8 @@ class AdminProfileProvider extends ChangeNotifier {
         // Confirm sign out button
         ElevatedButton(
           onPressed: () async {
-            Navigator.pop(context);
-            await handleSignOut(context);
+            Navigator.pop(profileScreenContext); // Close dialog first
+            await handleSignOut(profileScreenContext);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,

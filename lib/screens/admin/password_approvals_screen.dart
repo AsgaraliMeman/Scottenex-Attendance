@@ -3,34 +3,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:scottenex_attendance/utils/app_colors.dart';
+import 'package:scottenex_attendance/services/password_reset_notification_service.dart';
 
-class PasswordApprovalsScreen
-    extends StatefulWidget {
-  const PasswordApprovalsScreen({
-    super.key,
-  });
+class PasswordApprovalsScreen extends StatefulWidget {
+  const PasswordApprovalsScreen({super.key});
 
   @override
-  State<PasswordApprovalsScreen>
-  createState() =>
+  State<PasswordApprovalsScreen> createState() =>
       _PasswordApprovalsScreenState();
 }
 
-class _PasswordApprovalsScreenState
-    extends State<PasswordApprovalsScreen> {
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+class _PasswordApprovalsScreenState extends State<PasswordApprovalsScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>>
-  get _passwordRequestsStream =>
+  Stream<QuerySnapshot<Map<String, dynamic>>> get _passwordRequestsStream =>
       _firestore
-          .collection(
-            'password_reset_requests',
-          )
-          .where(
-            'status',
-            isEqualTo: 'pending',
-          )
+          .collection('password_reset_requests')
+          .where('status', isEqualTo: 'pending')
           .snapshots();
 
   Future<void> _updateRequestStatus(
@@ -39,243 +28,228 @@ class _PasswordApprovalsScreenState
     String email,
   ) async {
     try {
+      // Get the full request data to extract employee UID
+      final requestDoc = await _firestore
+          .collection('password_reset_requests')
+          .doc(requestId)
+          .get();
+
+      final requestData = requestDoc.data();
+      var employeeUid = requestData?['uid'] ?? '';
+
+      // If UID is not in request, look it up from users collection by email
+      if (employeeUid.isEmpty) {
+        debugPrint('⚠️ No UID in request, looking up by email: $email');
+
+        final userQuery = await _firestore
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (userQuery.docs.isNotEmpty) {
+          employeeUid = userQuery.docs.first.id;
+          debugPrint('✅ Found employee UID: $employeeUid');
+        } else {
+          debugPrint('❌ Could not find employee by email: $email');
+        }
+      }
+
       // Update Firestore request status
       await _firestore
-          .collection(
-            'password_reset_requests',
-          )
+          .collection('password_reset_requests')
           .doc(requestId)
-          .update({
-            'status': status,
-            'processedAt':
-                Timestamp.now(),
-          });
+          .update({'status': status, 'processedAt': Timestamp.now()});
 
-      // Send reset email if approved
+      // Send reset email and notification if approved
       if (status == 'approved') {
-        await FirebaseAuth.instance
-            .sendPasswordResetEmail(
-              email: email,
-            );
+        // Generate password reset link
+        final actionCodeSettings = ActionCodeSettings(
+          url: 'https://scottenex-attendance.firebaseapp.com/reset-password',
+          handleCodeInApp: true,
+          iOSBundleId: 'com.example.scottenexAttendance',
+          androidPackageName: 'com.scottenex.attendance',
+          androidInstallApp: true,
+          androidMinimumVersion: '12',
+        );
+
+        await FirebaseAuth.instance.sendPasswordResetEmail(
+          email: email,
+          actionCodeSettings: actionCodeSettings,
+        );
+
+        // Get employee info for notification
+        String employeeName = '';
+
+        // Try to get from users collection
+        if (employeeUid.isNotEmpty) {
+          final userDoc = await _firestore
+              .collection('users')
+              .doc(employeeUid)
+              .get();
+
+          if (userDoc.exists) {
+            employeeName = userDoc.data()?['name'] ?? email;
+          }
+        }
+
+        if (employeeName.isEmpty) {
+          employeeName = email.split('@')[0];
+        }
+
+        // Send in-app notification
+        try {
+          if (employeeUid.isEmpty) {
+            debugPrint('❌ Cannot send notification: employeeUid is empty');
+            throw Exception('Employee UID is empty');
+          }
+
+          debugPrint('📤 Sending notifications to UID: $employeeUid');
+
+          final resetLink =
+              'https://scottenex-attendance.firebaseapp.com/reset-password?email=$email';
+
+          // Send in-app notification (Firestore)
+          // Cloud Function will automatically send push notification to device
+          await PasswordResetNotificationService.sendPasswordResetNotification(
+            employeeUid: employeeUid,
+            employeeEmail: email,
+            employeeName: employeeName,
+            resetLink: resetLink,
+          );
+
+          debugPrint('✅ Notification created successfully (push notification sent by Cloud Function)');
+        } catch (e) {
+          debugPrint('❌ Error sending notifications: $e');
+          // Continue even if notification fails
+        }
 
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(
-                SnackBar(
-                  backgroundColor:
-                      Colors.green,
-                  duration:
-                      const Duration(
-                        seconds: 4,
-                      ),
-                  content: Text(
-                    'Approved successfully.\nReset email sent to $email',
-                  ),
-                ),
-              );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+              content: Text(
+                'Approved successfully.\nReset email sent to $email',
+              ),
+            ),
+          );
         }
       } else {
         // Rejected
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(
-                const SnackBar(
-                  backgroundColor:
-                      Colors.red,
-                  content: Text(
-                    'Password reset request rejected',
-                  ),
-                ),
-              );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.red,
+              content: Text('Password reset request rejected'),
+            ),
+          );
         }
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-            SnackBar(
-              backgroundColor:
-                  Colors.red,
-              content: Text(
-                'Firebase Error: ${e.message}',
-              ),
-            ),
-          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('Firebase Error: ${e.message}'),
+        ),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-            SnackBar(
-              backgroundColor:
-                  Colors.red,
-              content: Text(
-                'Error: $e',
-              ),
-            ),
-          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text('Error: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          AppColors.backgroundAlt,
+      backgroundColor: AppColors.backgroundAlt,
       appBar: AppBar(
-        backgroundColor:
-            AppColors.backgroundAlt,
+        backgroundColor: AppColors.backgroundAlt,
         elevation: 0,
         title: const Text(
           'Password Approvals',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight:
-                FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
-      body: StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>
-      >(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _passwordRequestsStream,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
-          final requests =
-              snapshot.data!.docs;
+          final requests = snapshot.data!.docs;
 
           if (requests.isEmpty) {
-            return const Center(
-              child: Text(
-                'No pending requests',
-              ),
-            );
+            return const Center(child: Text('No pending requests'));
           }
 
           return ListView.builder(
-            padding:
-                const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             itemCount: requests.length,
-            itemBuilder: (
-              context,
-              index,
-            ) {
-              final request =
-                  requests[index];
+            itemBuilder: (context, index) {
+              final request = requests[index];
 
-              final data =
-                  request.data();
+              final data = request.data();
 
-              final email =
-                  data['email'] ?? '';
+              final email = data['email'] ?? '';
 
-              final requestedAt =
-                  data['requestedAt']
-                      ?.toDate();
+              final requestedAt = data['requestedAt']?.toDate();
 
-              final requestDate =
-                  requestedAt != null
-                      ? DateFormat(
-                        'MMM d, yyyy',
-                      ).format(
-                        requestedAt,
-                      )
-                      : '';
+              final requestDate = requestedAt != null
+                  ? DateFormat('MMM d, yyyy').format(requestedAt)
+                  : '';
 
               return Container(
-                margin:
-                    const EdgeInsets.only(
-                      bottom: 16,
-                    ),
-                padding:
-                    const EdgeInsets.all(
-                      18,
-                    ),
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(
-                        20,
-                      ),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black
-                          .withOpacity(
-                            0.05,
-                          ),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 10,
-                      offset:
-                          const Offset(
-                            0,
-                            4,
-                          ),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         CircleAvatar(
-                          backgroundColor:
-                              AppColors
-                                  .accent,
+                          backgroundColor: AppColors.accent,
                           child: Text(
-                            email
-                                    .isNotEmpty
-                                ? email[0]
-                                    .toUpperCase()
-                                : '?',
-                            style:
-                                const TextStyle(
-                                  color:
-                                      Colors
-                                          .black,
-                                  fontWeight:
-                                      FontWeight
-                                          .bold,
-                                ),
+                            email.isNotEmpty ? email[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
 
-                        const SizedBox(
-                          width: 12,
-                        ),
+                        const SizedBox(width: 12),
 
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 email,
                                 style: const TextStyle(
-                                  fontWeight:
-                                      FontWeight
-                                          .bold,
-                                  fontSize:
-                                      16,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
 
-                              const SizedBox(
-                                height: 4,
-                              ),
+                              const SizedBox(height: 4),
 
                               const Text(
                                 'Password Reset Request',
-                                style: TextStyle(
-                                  color:
-                                      Colors
-                                          .grey,
-                                ),
+                                style: TextStyle(color: Colors.grey),
                               ),
                             ],
                           ),
@@ -283,92 +257,57 @@ class _PasswordApprovalsScreenState
                       ],
                     ),
 
-                    const SizedBox(
-                      height: 16,
-                    ),
+                    const SizedBox(height: 16),
 
                     Text(
                       'Requested: $requestDate',
-                      style:
-                          const TextStyle(
-                            color:
-                                Colors
-                                    .black87,
-                          ),
+                      style: const TextStyle(color: Colors.black87),
                     ),
 
-                    const SizedBox(
-                      height: 20,
-                    ),
+                    const SizedBox(height: 20),
 
                     Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () =>
-                                _updateRequestStatus(
-                                  request.id,
-                                  'approved',
-                                  email,
-                                ),
+                            onPressed: () => _updateRequestStatus(
+                              request.id,
+                              'approved',
+                              email,
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  AppColors
-                                      .accent,
-                              padding:
-                                  const EdgeInsets.symmetric(
-                                    vertical:
-                                        14,
-                                  ),
+                              backgroundColor: AppColors.accent,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                      12,
-                                    ),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             child: const Text(
                               'Approve',
                               style: TextStyle(
-                                color:
-                                    Colors
-                                        .black,
-                                fontWeight:
-                                    FontWeight
-                                        .bold,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                         ),
 
-                        const SizedBox(
-                          width: 12,
-                        ),
+                        const SizedBox(width: 12),
 
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () =>
-                                _updateRequestStatus(
-                                  request.id,
-                                  'rejected',
-                                  email,
-                                ),
+                            onPressed: () => _updateRequestStatus(
+                              request.id,
+                              'rejected',
+                              email,
+                            ),
                             style: OutlinedButton.styleFrom(
-                              padding:
-                                  const EdgeInsets.symmetric(
-                                    vertical:
-                                        14,
-                                  ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(
-                                      12,
-                                    ),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text(
-                              'Reject',
-                            ),
+                            child: const Text('Reject'),
                           ),
                         ),
                       ],

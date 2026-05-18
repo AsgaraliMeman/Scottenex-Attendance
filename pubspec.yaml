@@ -40,6 +40,13 @@ dependencies:
   firebase_auth: ^4.17.9
   cloud_firestore: ^4.15.9
   firebase_storage: ^11.6.10
+  firebase_messaging: ^14.7.9
+
+  # Local notifications for displaying notifications in foreground
+  flutter_local_notifications: ^17.1.0
+
+  # URL launching
+  url_launcher: ^6.2.0
 
   # State management
   provider: ^6.1.1

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:scottenex_attendance/providers/auth_provider.dart';
 import 'package:scottenex_attendance/utils/app_colors.dart';
 import 'package:scottenex_attendance/widget/check_in_card.dart';
+import 'package:scottenex_attendance/widget/notification_banner.dart';
 import 'employee_profile_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
@@ -56,20 +57,19 @@ class _EmployeeDashboardScreenState
         setState(() {
           _checkInTime =
               data['checkInTime'] != null
-              ? (data['checkInTime']
-                        as Timestamp)
-                    .toDate()
-              : null;
+                  ? (data['checkInTime']
+                          as Timestamp)
+                      .toDate()
+                  : null;
 
           _checkOutTime =
               data['checkOutTime'] != null
-              ? (data['checkOutTime']
-                        as Timestamp)
-                    .toDate()
-              : null;
+                  ? (data['checkOutTime']
+                          as Timestamp)
+                      .toDate()
+                  : null;
 
           /// IF CHECKED OUT TODAY
-          /// SWITCH SHOULD BE OFF AGAIN
           if (_checkOutTime != null) {
             _isCheckedIn = false;
           }
@@ -120,6 +120,32 @@ class _EmployeeDashboardScreenState
         .doc('${user.uid}_$today');
 
     try {
+      final existingDoc =
+          await docRef.get();
+
+      final existingData =
+          existingDoc.data();
+
+      /// PREVENT MULTIPLE ATTENDANCE
+      /// AFTER CHECKOUT
+      if (existingData != null &&
+          existingData['checkOutTime'] !=
+              null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Attendance already completed for today',
+              ),
+            ),
+          );
+        }
+
+        return;
+      }
+
       /// CHECK IN
       if (isCheckIn) {
         await docRef.set({
@@ -201,59 +227,77 @@ class _EmployeeDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
+    final authProvider =
+        Provider.of<AuthProvider>(context);
 
     // Wait for user data to load
     if (authProvider.isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor:
+            AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.primary,
+          backgroundColor:
+              AppColors.primary,
           title: const Text(
             'Attendance',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight:
+                  FontWeight.w600,
             ),
           ),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(
+          child:
+              CircularProgressIndicator(),
+        ),
       );
     }
 
     // Only employees can access check-in screen
-    final userRole = authProvider.userModel?.role ?? '';
+    final userRole =
+        authProvider.userModel?.role ??
+            '';
+
     if (userRole != 'employee') {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor:
+            AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.primary,
+          backgroundColor:
+              AppColors.primary,
           title: const Text(
             'Attendance',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight:
+                  FontWeight.w600,
             ),
           ),
         ),
         body: const Center(
           child: Text(
             'This feature is only for employees',
-            style: TextStyle(fontSize: 16),
+            style: TextStyle(
+              fontSize: 16,
+            ),
           ),
         ),
       );
     }
 
-    final userModel = authProvider.userModel;
+    final userModel =
+        authProvider.userModel;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor:
+          AppColors.background,
 
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
+        backgroundColor:
+            AppColors.primary,
         elevation: 0,
 
         title: const Text(
@@ -261,17 +305,21 @@ class _EmployeeDashboardScreenState
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight:
+                FontWeight.w600,
           ),
         ),
 
         leading: Container(
-          margin: const EdgeInsets.all(8),
+          margin:
+              const EdgeInsets.all(8),
 
           decoration: BoxDecoration(
             color: AppColors.accent,
             borderRadius:
-                BorderRadius.circular(8),
+                BorderRadius.circular(
+                  8,
+                ),
           ),
 
           child: const Icon(
@@ -295,7 +343,8 @@ class _EmployeeDashboardScreenState
                   builder: (context) =>
                       EmployeeProfileScreen(
                         userName:
-                            userModel?.name ??
+                            userModel
+                                ?.name ??
                             'Employee',
                       ),
                 ),
@@ -308,18 +357,19 @@ class _EmployeeDashboardScreenState
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
-
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
-
             children: [
+              // Show notification banner if there are pending notifications
+              NotificationBanner(
+                userId: userModel?.uid ?? '',
+              ),
               Text(
                 _getGreeting(),
-
                 style: const TextStyle(
-                  color:
-                      AppColors.secondaryText,
+                  color: AppColors
+                      .secondaryText,
                   fontSize: 14,
                 ),
               ),
@@ -333,7 +383,8 @@ class _EmployeeDashboardScreenState
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 32,
-                  fontWeight: FontWeight.bold,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
 
@@ -347,12 +398,31 @@ class _EmployeeDashboardScreenState
                 checkOutTime:
                     _checkOutTime,
 
-                canInteract: true,
+                /// DISABLE AFTER CHECKOUT
+                canInteract:
+                    _checkOutTime ==
+                    null,
 
                 onAttendance: (
                   value,
-                ) {
-                  _markAttendance(
+                ) async {
+                  /// BLOCK RE-CHECKIN
+                  if (_checkOutTime !=
+                      null) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Attendance already completed for today',
+                        ),
+                      ),
+                    );
+
+                    return;
+                  }
+
+                  await _markAttendance(
                     value,
                   );
                 },
@@ -378,10 +448,13 @@ class _EmployeeDashboardScreenState
       shiftStatus = 'Not Started';
       statusColor = Colors.orange;
       statusIcon = Icons.schedule;
-    } else if (_checkOutTime == null) {
+    } else if (_checkOutTime ==
+        null) {
       shiftStatus = 'Active Shift';
-      statusColor = Colors.greenAccent;
-      statusIcon = Icons.check_circle;
+      statusColor =
+          Colors.greenAccent;
+      statusIcon =
+          Icons.check_circle;
     } else {
       shiftStatus = 'Shift Complete';
       statusColor =
@@ -397,7 +470,8 @@ class _EmployeeDashboardScreenState
             BorderRadius.circular(16),
       ),
 
-      padding: const EdgeInsets.all(24),
+      padding:
+          const EdgeInsets.all(24),
 
       child: Column(
         crossAxisAlignment:
@@ -426,11 +500,14 @@ class _EmployeeDashboardScreenState
                 children: [
                   Icon(
                     statusIcon,
-                    color: statusColor,
+                    color:
+                        statusColor,
                     size: 18,
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(
+                    width: 6,
+                  ),
 
                   Text(
                     shiftStatus,
@@ -438,8 +515,10 @@ class _EmployeeDashboardScreenState
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight:
-                          FontWeight.w600,
-                      color: statusColor,
+                          FontWeight
+                              .w600,
+                      color:
+                          statusColor,
                     ),
                   ),
                 ],
@@ -460,18 +539,21 @@ class _EmployeeDashboardScreenState
                     'CHECK IN TIME',
 
                 value:
-                    _checkInTime != null
-                    ? DateFormat(
-                        'hh:mm a',
-                      ).format(
-                        _checkInTime!,
-                      )
-                    : '--:--',
+                    _checkInTime !=
+                            null
+                        ? DateFormat(
+                            'hh:mm a',
+                          ).format(
+                            _checkInTime!,
+                          )
+                        : '--:--',
 
                 icon:
-                    _checkInTime != null
-                    ? Icons.check_circle
-                    : Icons.schedule,
+                    _checkInTime !=
+                            null
+                        ? Icons
+                            .check_circle
+                        : Icons.schedule,
               ),
 
               _buildStatusItem(
@@ -479,25 +561,31 @@ class _EmployeeDashboardScreenState
                     'CHECK OUT TIME',
 
                 value:
-                    _checkOutTime != null
-                    ? DateFormat(
-                        'hh:mm a',
-                      ).format(
-                        _checkOutTime!,
-                      )
-                    : '--:--',
+                    _checkOutTime !=
+                            null
+                        ? DateFormat(
+                            'hh:mm a',
+                          ).format(
+                            _checkOutTime!,
+                          )
+                        : '--:--',
 
                 icon:
-                    _checkOutTime != null
-                    ? Icons.check_circle
-                    : Icons.schedule,
+                    _checkOutTime !=
+                            null
+                        ? Icons
+                            .check_circle
+                        : Icons.schedule,
               ),
             ],
           ),
 
           if (_checkInTime != null &&
-              _checkOutTime != null) ...[
-            const SizedBox(height: 20),
+              _checkOutTime !=
+                  null) ...[
+            const SizedBox(
+              height: 20,
+            ),
 
             _buildDurationWidget(),
           ],
@@ -527,8 +615,8 @@ class _EmployeeDashboardScreenState
           ),
 
       decoration: BoxDecoration(
-        color:
-            Colors.white.withOpacity(0.1),
+        color: Colors.white
+            .withOpacity(0.1),
 
         borderRadius:
             BorderRadius.circular(8),
